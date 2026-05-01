@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hustlify Viewer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Secure Viewer</h1>
+    <div id="status" class="card">Validating link...</div>
+    <div id="viewer" class="card" style="display:none;">
+      <div class="viewer-wrap" id="viewerWrap">
+        <div id="watermark"></div>
+        <div id="contentHolder"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = location.pathname.split('/').pop();
+    const statusEl = document.getElementById('status');
+    const viewerEl = document.getElementById('viewer');
+    const contentHolder = document.getElementById('contentHolder');
+    const watermark = document.getElementById('watermark');
+
+    function blockActions() {
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+      document.addEventListener('keydown', (e) => {
+        const blocked = [
+          'PrintScreen',
+          'F12',
+        ];
+        if (
+          blocked.includes(e.key) ||
+          (e.ctrlKey && ['s', 'u', 'p'].includes(e.key.toLowerCase())) ||
+          (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()))
+        ) {
+          e.preventDefault();
+        }
+      });
+    }
+
+    function moveWatermark() {
+      const parent = document.getElementById('viewerWrap');
+      const maxX = Math.max(parent.clientWidth - 260, 0);
+      const maxY = Math.max(parent.clientHeight - 80, 0);
+      const x = Math.floor(Math.random() * (maxX + 1));
+      const y = Math.floor(Math.random() * (maxY + 1));
+      watermark.style.left = `${x}px`;
+      watermark.style.top = `${y}px`;
+      watermark.textContent = `Exclusive | ${token} | ${new Date().toLocaleString()}`;
+    }
+
+    async function init() {
+      blockActions();
+      const res = await fetch(`/api/watch/${token}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        statusEl.textContent = data.error || 'Invalid link';
+        return;
+      }
+
+      statusEl.style.display = 'none';
+      viewerEl.style.display = 'block';
+      const { content } = data;
+
+      if (content.type === 'video') {
+        contentHolder.innerHTML = `<video controls controlsList="nodownload noplaybackrate" disablePictureInPicture src="${content.fileUrl}"></video>`;
+      } else {
+        contentHolder.innerHTML = `<iframe src="${content.fileUrl}" width="900" height="600"></iframe>`;
+      }
+
+      moveWatermark();
+      setInterval(moveWatermark, 5000);
+    }
+
+    init();
+  </script>
+</body>
+</html>
