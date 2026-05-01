@@ -9,14 +9,70 @@
 <body>
   <div class="container">
     <h1>Secure Viewer</h1>
+
     <div id="status" class="card">Validating link...</div>
+
+    <div id="viewer" class="card" style="display:none;">
+      <div id="contentHolder"></div>
+    </div>
   </div>
 
   <script>
     const token = location.pathname.split('/').pop();
 
-    // 🚀 DIRECT REDIRECT (FIXED)
-    window.location.href = `/api/watch/${token}`;
+    const statusEl = document.getElementById('status');
+    const viewerEl = document.getElementById('viewer');
+    const contentHolder = document.getElementById('contentHolder');
+
+    async function init() {
+      try {
+        const res = await fetch(`/api/watch/${token}`);
+        const data = await res.json();
+
+        console.log("API RESPONSE:", data);
+
+        if (!res.ok) {
+          statusEl.textContent = data.error || "Invalid link";
+          return;
+        }
+
+        const content = data.content;
+
+        if (!content) {
+          statusEl.textContent = "No content found";
+          return;
+        }
+
+        // ✅ Hide loading
+        statusEl.style.display = "none";
+        viewerEl.style.display = "block";
+
+        // 🎥 Render content
+        if (content.type === "video") {
+          contentHolder.innerHTML = `
+            <video 
+              src="${content.fileUrl}" 
+              controls 
+              autoplay 
+              style="width:100%; max-height:80vh;"
+            ></video>
+          `;
+        } else {
+          contentHolder.innerHTML = `
+            <iframe 
+              src="${content.fileUrl}" 
+              style="width:100%; height:80vh;"
+            ></iframe>
+          `;
+        }
+
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error loading content";
+      }
+    }
+
+    init();
   </script>
 </body>
 </html>
