@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Hustlify Admin</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -19,35 +19,34 @@
     <div class="grid">
       <div class="card">
         <h2>Upload Content</h2>
-        <div class="sub">Upload a video or document to Firebase Storage.</div>
+        <div class="sub">Upload a video or document</div>
+
         <form id="uploadForm">
-          <div class="upload-zone">
-            <input type="file" name="file" id="file" required />
-          </div>
+          <input type="file" name="file" required />
           <div class="row" style="margin-top:12px;">
             <button type="submit" id="uploadBtn">Upload</button>
             <button type="button" class="secondary" id="refreshBtn">Refresh List</button>
           </div>
         </form>
-        <p id="uploadStatus" class="small" style="margin-top:10px;"></p>
+
+        <p id="uploadStatus" class="small"></p>
       </div>
 
       <div class="card">
         <h2>Uploaded Content</h2>
-        <div class="sub">Generate one-time links and share securely.</div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Type</th>
-                <th>File Name</th>
-                <th>One-Time Access</th>
-              </tr>
-            </thead>
-            <tbody id="contentRows"></tbody>
-          </table>
-        </div>
+        <div class="sub">Generate one-time links</div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>File Name</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="contentRows"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -59,98 +58,121 @@
     const refreshBtn = document.getElementById('refreshBtn');
     const uploadBtn = document.getElementById('uploadBtn');
 
-    function setStatus(message, isError = false) {
-      uploadStatus.textContent = message;
-      uploadStatus.className = `small ${isError ? 'status-error' : 'status-ok'}`;
+    function setStatus(msg, error=false){
+      uploadStatus.textContent = msg;
+      uploadStatus.style.color = error ? 'red' : 'limegreen';
     }
 
-    function formatType(type) {
-      const cls = type === 'video' ? 'type-video' : 'type-document';
-      return `<span class="type-pill ${cls}">${type}</span>`;
+    function formatType(type){
+      return type === 'video' ? '🎥 Video' : '📄 Document';
     }
 
-    async function loadContent() {
-      const res = await fetch('/api/upload');
-      const data = await res.json();
-      contentRows.innerHTML = '';
-
-      if (!data.items || data.items.length === 0) {
-        contentRows.innerHTML = `<tr><td colspan="4" class="small">No content uploaded yet.</td></tr>`;
-        return;
-      }
-
-      data.items.forEach((item) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td title="${item.id}">${item.id.slice(0, 8)}...</td>
-          <td>${formatType(item.type)}</td>
-          <td>${item.originalName || 'Untitled'}</td>
-          <td>
-            <button data-id="${item.id}">Generate One-Time Link</button>
-            <div id="link-${item.id}" class="small link-box"></div>
-          </td>
-        `;
-        contentRows.appendChild(tr);
-      });
-
-      contentRows.querySelectorAll('button[data-id]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const contentId = btn.getAttribute('data-id');
-          btn.disabled = true;
-          btn.textContent = 'Generating...';
-
-          try {
-            const res = await fetch('/api/generate-link', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ contentId }),
-            });
-            const data = await res.json();
-            const holder = document.getElementById(`link-${contentId}`);
-            if (data.url) {
-              holder.innerHTML = `<a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.url}</a>`;
-            } else {
-              holder.textContent = data.error || 'Failed to generate link';
-            }
-          } finally {
-            btn.disabled = false;
-            btn.textContent = 'Generate One-Time Link';
-          }
-        });
-      });
-    }
-
-    uploadForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      uploadBtn.disabled = true;
-      uploadBtn.textContent = 'Uploading...';
-      setStatus('Uploading file...');
-
+    // 🔄 Load content
+    async function loadContent(){
       try {
-        const formData = new FormData(uploadForm);
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
+        const res = await fetch('/api/content');
         const data = await res.json();
 
-        if (!res.ok) {
-          setStatus(data.error || 'Upload failed', true);
+        contentRows.innerHTML = '';
+
+        if (!data || data.length === 0){
+          contentRows.innerHTML = `<tr><td colspan="4">No content uploaded yet.</td></tr>`;
           return;
         }
 
-        setStatus(data.message || 'Upload successful');
-        uploadForm.reset();
-        await loadContent();
-      } catch (error) {
-        setStatus('Unexpected error while uploading.', true);
-      } finally {
-        uploadBtn.disabled = false;
-        uploadBtn.textContent = 'Upload';
+        data.forEach(item => {
+          const tr = document.createElement('tr');
+
+          tr.innerHTML = `
+            <td>${item.id}</td>
+            <td>${formatType(item.type)}</td>
+            <td>${item.originalName}</td>
+            <td>
+              <button onclick="generateLink(${item.id})">Generate Link</button>
+              <div id="link-${item.id}" style="font-size:12px; margin-top:6px;"></div>
+            </td>
+          `;
+
+          contentRows.appendChild(tr);
+        });
+
+      } catch (err){
+        console.error(err);
       }
+    }
+
+    // 🔗 Generate link (FIXED HERE)
+    async function generateLink(id){
+      const holder = document.getElementById(`link-${id}`);
+      holder.innerText = "Generating...";
+
+      try {
+        const res = await fetch('/api/generate-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contentId: id })
+        });
+
+        const data = await res.json();
+
+        // ✅ FIX: use "link" instead of "url"
+        if (data.link){
+          holder.innerHTML = `
+            <a href="${data.link}" target="_blank">${data.link}</a><br>
+            <button onclick="copyLink('${data.link}')">Copy</button>
+          `;
+        } else {
+          holder.innerText = "Error generating link";
+        }
+
+      } catch {
+        holder.innerText = "Error";
+      }
+    }
+
+    function copyLink(link){
+      navigator.clipboard.writeText(link);
+      alert("Link copied!");
+    }
+
+    // 📤 Upload
+    uploadForm.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "Uploading...";
+      setStatus("Uploading...");
+
+      try {
+        const formData = new FormData(uploadForm);
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (!res.ok){
+          setStatus(data.error || "Upload failed", true);
+          return;
+        }
+
+        setStatus("Uploaded successfully");
+        uploadForm.reset();
+        loadContent();
+
+      } catch {
+        setStatus("Error uploading", true);
+      }
+
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = "Upload";
     });
 
     refreshBtn.addEventListener('click', loadContent);
+
+    // Load on start
     loadContent();
   </script>
 </body>

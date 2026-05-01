@@ -1,52 +1,37 @@
-const express = require('express');
-const { db, bucket, admin } = require('../firebase');
-const config = require('../config/env');
-const httpError = require('../utils/httpError');
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
 
 const router = express.Router();
 
-router.get('/:token', async (req, res, next) => {
-  const { token } = req.params;
+const dataFile = path.join(__dirname, "../data/content.json");
 
+router.get("/:token", (req, res) => {
   try {
-    const linkRef = db.collection('links').doc(token);
-    const result = await db.runTransaction(async (tx) => {
-      const linkSnap = await tx.get(linkRef);
-      if (!linkSnap.exists) throw httpError(404, 'Invalid link');
+    const { token } = req.params;
 
-      const linkData = linkSnap.data();
-      if (linkData.used) throw httpError(410, 'Link expired');
-      if (!linkData.expiresAt || linkData.expiresAt.toDate() < new Date()) {
-        tx.update(linkRef, { used: true, usedAt: admin.firestore.FieldValue.serverTimestamp() });
-        throw httpError(410, 'Link expired');
-      }
+    if (!fs.existsSync(dataFile)) {
+      return res.status(404).send("No content found");
+    }
 
-      tx.update(linkRef, { used: true, usedAt: admin.firestore.FieldValue.serverTimestamp() });
-      return { contentId: linkData.contentId };
-    });
+    const data = JSON.parse(fs.readFileSync(dataFile));
 
-    const contentSnap = await db.collection('content').doc(result.contentId).get();
-    if (!contentSnap.exists) throw httpError(404, 'Content not found');
-    const content = contentSnap.data();
+    const item = data.find(c => c.token === token);
 
-    const file = bucket.file(content.storagePath);
-    const [signedUrl] = await file.getSignedUrl({
-      action: 'read',
-      expires: Date.now() + config.signedUrlMinutes * 60 * 1000,
-      version: 'v4',
-    });
+    if (!item) {
+      return res.status(404).send("Invalid or expired link");
+    }
 
-    await db.collection('linkLogs').add({
-      token,
-      contentId: result.contentId,
-      openedAt: admin.firestore.FieldValue.serverTimestamp(),
-      ip: req.ip,
-      userAgent: req.get('user-agent') || 'unknown',
-    });
+    // 🔥 ONE-TIME ACCESS → remove token
+    delete item.token;
+    fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
 
-    res.json({ token, content: { id: content.id, type: content.type, originalName: content.originalName, fileUrl: signedUrl } });
-  } catch (error) {
-    next(error);
+    // 🎯 Redirect to file
+    return res.redirect(`/${item.filePath}`);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error opening file");
   }
 });
 
