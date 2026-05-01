@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hustlify Admin</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="brand">
+        <h1>Hustlify Portal</h1>
+        <p>Secure one-time content sharing dashboard</p>
+      </div>
+      <div class="badge">Admin Console</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Upload Content</h2>
+        <div class="sub">Upload a video or document to Firebase Storage.</div>
+        <form id="uploadForm">
+          <div class="upload-zone">
+            <input type="file" name="file" id="file" required />
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <button type="submit" id="uploadBtn">Upload</button>
+            <button type="button" class="secondary" id="refreshBtn">Refresh List</button>
+          </div>
+        </form>
+        <p id="uploadStatus" class="small" style="margin-top:10px;"></p>
+      </div>
+
+      <div class="card">
+        <h2>Uploaded Content</h2>
+        <div class="sub">Generate one-time links and share securely.</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>File Name</th>
+                <th>One-Time Access</th>
+              </tr>
+            </thead>
+            <tbody id="contentRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const uploadForm = document.getElementById('uploadForm');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const contentRows = document.getElementById('contentRows');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    function setStatus(message, isError = false) {
+      uploadStatus.textContent = message;
+      uploadStatus.className = `small ${isError ? 'status-error' : 'status-ok'}`;
+    }
+
+    function formatType(type) {
+      const cls = type === 'video' ? 'type-video' : 'type-document';
+      return `<span class="type-pill ${cls}">${type}</span>`;
+    }
+
+    async function loadContent() {
+      const res = await fetch('/api/upload');
+      const data = await res.json();
+      contentRows.innerHTML = '';
+
+      if (!data.items || data.items.length === 0) {
+        contentRows.innerHTML = `<tr><td colspan="4" class="small">No content uploaded yet.</td></tr>`;
+        return;
+      }
+
+      data.items.forEach((item) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td title="${item.id}">${item.id.slice(0, 8)}...</td>
+          <td>${formatType(item.type)}</td>
+          <td>${item.originalName || 'Untitled'}</td>
+          <td>
+            <button data-id="${item.id}">Generate One-Time Link</button>
+            <div id="link-${item.id}" class="small link-box"></div>
+          </td>
+        `;
+        contentRows.appendChild(tr);
+      });
+
+      contentRows.querySelectorAll('button[data-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const contentId = btn.getAttribute('data-id');
+          btn.disabled = true;
+          btn.textContent = 'Generating...';
+
+          try {
+            const res = await fetch('/api/generate-link', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contentId }),
+            });
+            const data = await res.json();
+            const holder = document.getElementById(`link-${contentId}`);
+            if (data.url) {
+              holder.innerHTML = `<a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.url}</a>`;
+            } else {
+              holder.textContent = data.error || 'Failed to generate link';
+            }
+          } finally {
+            btn.disabled = false;
+            btn.textContent = 'Generate One-Time Link';
+          }
+        });
+      });
+    }
+
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Uploading...';
+      setStatus('Uploading file...');
+
+      try {
+        const formData = new FormData(uploadForm);
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setStatus(data.error || 'Upload failed', true);
+          return;
+        }
+
+        setStatus(data.message || 'Upload successful');
+        uploadForm.reset();
+        await loadContent();
+      } catch (error) {
+        setStatus('Unexpected error while uploading.', true);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Upload';
+      }
+    });
+
+    refreshBtn.addEventListener('click', loadContent);
+    loadContent();
+  </script>
+</body>
+</html>
