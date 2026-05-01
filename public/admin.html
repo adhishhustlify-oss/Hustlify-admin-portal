@@ -101,7 +101,7 @@
       }
     }
 
-    // 🔗 Generate link (FIXED HERE)
+    // 🔗 Generate link (FINAL FIX)
     async function generateLink(id){
       const holder = document.getElementById(`link-${id}`);
       holder.innerText = "Generating...";
@@ -114,18 +114,20 @@
         });
 
         const data = await res.json();
+        console.log("API RESPONSE:", data); // 🔍 debug
 
-        // ✅ FIX: use "link" instead of "url"
-        if (data.link){
+        // ✅ FIXED: use data.url (NOT data.link)
+        if (data.url){
           holder.innerHTML = `
-            <a href="${data.link}" target="_blank">${data.link}</a><br>
-            <button onclick="copyLink('${data.link}')">Copy</button>
+            <a href="${data.url}" target="_blank">${data.url}</a><br>
+            <button onclick="copyLink('${data.url}')">Copy</button>
           `;
         } else {
-          holder.innerText = "Error generating link";
+          holder.innerText = data.error || "Error generating link";
         }
 
-      } catch {
+      } catch (err){
+        console.error(err);
         holder.innerText = "Error";
       }
     }
@@ -172,7 +174,7 @@
 
     refreshBtn.addEventListener('click', loadContent);
 
-    // Load on start
+    // 🚀 Initial load
     loadContent();
   </script>
 </body>
