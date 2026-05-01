@@ -12,15 +12,13 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 const uploadRoutes = require('./routes/upload');
 const generateLinkRoutes = require('./routes/generateLink');
 const watchRoutes = require('./routes/watch');
-const contentRoutes = require('./routes/content'); // ✅ REQUIRED
+const contentRoutes = require('./routes/content');
 
 const app = express();
 
-// ===== STATIC FILES =====
-app.use("/storage", express.static(path.join(__dirname, "..", "storage")));
-app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h' }));
-
-// ===== MIDDLEWARE =====
+// =============================
+// 🔧 BASIC MIDDLEWARE
+// =============================
 app.set('trust proxy', 1);
 app.use(cors());
 app.use(morgan(config.nodeEnv === 'production' ? 'combined' : 'dev'));
@@ -28,31 +26,57 @@ app.use(morgan(config.nodeEnv === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// ===== API ROUTES =====
+// =============================
+// 📁 STATIC FILES (IMPORTANT)
+// =============================
+app.use("/storage", express.static(path.join(__dirname, "..", "storage")));
+app.use(express.static(path.join(__dirname, '..', 'public')));
+
+// =============================
+// 🔌 API ROUTES
+// =============================
 app.use('/api/upload', uploadRoutes);
 app.use('/api/generate-link', generateLinkRoutes);
 app.use('/api/watch', watchRoutes);
-app.use('/api/content', contentRoutes); // ✅ THIS IS WHAT YOUR UI NEEDS
+app.use('/api/content', contentRoutes);
 
-// ===== PAGES =====
-app.get('/admin', (_req, res) =>
-  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'))
-);
+// =============================
+// 🌐 PAGE ROUTES
+// =============================
 
-app.get('/watch/:token', (_req, res) =>
-  res.sendFile(path.join(__dirname, '..', 'public', 'player.html'))
-);
+// Homepage → redirect to admin
+app.get('/', (req, res) => {
+  res.redirect('/admin');
+});
 
-// ===== HEALTH =====
-app.get('/health', (_req, res) =>
-  res.json({ status: 'ok', env: config.nodeEnv })
-);
+// Admin panel
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+});
 
-// ===== ERROR HANDLING =====
+// Player page
+app.get('/watch/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'player.html'));
+});
+
+// =============================
+// ❤️ HEALTH CHECK
+// =============================
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', env: config.nodeEnv });
+});
+
+// =============================
+// ❌ ERROR HANDLING
+// =============================
 app.use(notFound);
 app.use(errorHandler);
 
-// ===== START SERVER =====
-app.listen(config.port, () => {
-  console.log(`🚀 Hustlify Portal running on http://localhost:${config.port}`);
+// =============================
+// 🚀 START SERVER (Render safe)
+// =============================
+const PORT = process.env.PORT || config.port || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Hustlify Portal running on port ${PORT}`);
 });
